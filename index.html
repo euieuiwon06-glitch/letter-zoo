@@ -36,14 +36,14 @@
   body.dragging,body.dragging .grp .lt>span{cursor:grabbing}
   #animal{position:absolute;inset:0}
   #mode{
-    position:fixed;top:clamp(16px,2.2vw,36px);right:clamp(16px,2.2vw,36px);
-    display:flex;padding:4px;border-radius:999px;background:var(--pill);
+    position:fixed;top:clamp(14px,1.6vw,28px);right:clamp(14px,1.6vw,28px);
+    display:flex;padding:3px;border-radius:999px;background:var(--pill);
     box-shadow:0 10px 30px -18px rgba(20,50,20,.45);
   }
   #mode button{
     border:0;cursor:pointer;border-radius:999px;background:transparent;color:var(--ink);
-    font:700 clamp(12px,.9vw,17px)/1 "Noto Sans KR",sans-serif;letter-spacing:.08em;
-    padding:clamp(9px,.8vw,14px) clamp(16px,1.5vw,26px);
+    font:700 clamp(10px,.68vw,13px)/1 "Noto Sans KR",sans-serif;letter-spacing:.08em;
+    padding:clamp(7px,.55vw,10px) clamp(12px,1vw,18px);
     transition:background .25s,color .25s;
   }
   #mode button[aria-pressed="true"]{background:var(--ink);color:var(--pill)}
@@ -51,17 +51,17 @@
 
   form{
     position:fixed;left:50%;top:92%;transform:translate(-50%,-50%);
-    width:clamp(260px,36vw,760px);
+    width:clamp(220px,26vw,520px);
   }
   input{
     width:100%;border:0;outline:0;
-    height:clamp(48px,4.4vw,96px);
+    height:clamp(38px,3vw,62px);
     border-radius:999px;
     background:var(--pill);
     color:var(--ink);caret-color:var(--ink);
-    font:500 clamp(16px,1.45vw,32px)/1 "Noto Sans KR",sans-serif;
+    font:500 clamp(13px,1vw,21px)/1 "Noto Sans KR",sans-serif;
     letter-spacing:.09em;text-transform:uppercase;
-    padding:0 clamp(22px,3.2vw,72px);
+    padding:0 clamp(16px,1.9vw,40px);
     box-shadow:0 10px 30px -18px rgba(20,50,20,.45);
   }
   input::placeholder{color:rgba(31,74,42,.38)}
