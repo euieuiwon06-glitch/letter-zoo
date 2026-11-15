@@ -87,14 +87,14 @@
 
   /* intro popup — panel keeps the reference ratio (991 x 419); inside sizes are in panel-width units */
   #intro{
-    position:fixed;inset:0;display:flex;justify-content:center;align-items:center;
-    padding:16px 16px clamp(70px,11vh,120px);
+    position:fixed;inset:0;display:flex;justify-content:center;align-items:flex-end;
+    padding:16px 16px calc(100vh * (1 - .803));
     opacity:0;pointer-events:none;transition:opacity .35s ease;
   }
   #intro.open{opacity:1;pointer-events:auto}
   .panel{
     position:relative;container-type:inline-size;
-    width:min(1080px,92vw,calc((100vh - 150px) / .6));
+    width:min(1180px,92vw,calc((80.3vh - 48px) / .52));
     padding:2.3cqw 0 3.6cqw;
     border-radius:4.2cqw;
     background:rgba(255,255,255,.17);
