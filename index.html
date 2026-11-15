@@ -88,14 +88,14 @@
   /* intro popup — panel keeps the reference ratio (991 x 419); inside sizes are in panel-width units */
   #intro{
     position:fixed;inset:0;display:flex;justify-content:center;align-items:flex-end;
-    padding:16px 16px calc(100vh * (1 - .803));
+    padding:16px 16px calc(100vh * (1 - .803) - 3.2vh);
     opacity:0;pointer-events:none;transition:opacity .35s ease;
   }
   #intro.open{opacity:1;pointer-events:auto}
   .panel{
     position:relative;container-type:inline-size;
     width:min(1180px,92vw,calc((80.3vh - 48px) / .52));
-    padding:2.3cqw 0 3.6cqw;
+    padding:1.3cqw 0 3.6cqw;
     border-radius:4.2cqw;
     background:rgba(255,255,255,.17);
     -webkit-backdrop-filter:blur(13px) saturate(1.1);backdrop-filter:blur(13px) saturate(1.1);
@@ -116,7 +116,7 @@
   .panel .x svg{width:2.9cqw;height:2.9cqw}
   .panel .x:focus-visible{outline:2px solid var(--ink)}
   .grid{
-    width:82.8cqw;margin:3.6cqw auto 0;
+    width:82.8cqw;margin:4.6cqw auto 0;
     display:grid;grid-template-columns:repeat(5,1fr);row-gap:5cqw;
   }
   .tile{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:.75cqw}
