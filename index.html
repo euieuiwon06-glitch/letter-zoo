@@ -1,0 +1,765 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Letter Zoo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Noto+Sans+KR:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1f4a2a;
+    --pill:#f6efe1;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden}
+  body{
+    background:#8fc3ea;
+    font-family:"Cinzel","Trajan Pro",serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .bg{position:fixed;inset:0;background:url("bg.jpg") center 80.3% / cover no-repeat}
+  #bgNight{background-image:url("bg-night.jpg");background-position:center 80.3%;opacity:0;transition:opacity .9s ease}
+  #bgNight.on{opacity:1}
+  #stage{position:fixed;inset:0;pointer-events:none}
+  .lt{
+    position:absolute;left:0;top:0;
+    transform-origin:0 0;
+  }
+  .lt > span{
+    position:absolute;display:block;
+    font-weight:600;line-height:1;white-space:pre;
+  }
+  .grp{position:absolute;inset:0}
+  .grp .lt>span{pointer-events:auto;cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none}
+  body.dragging,body.dragging .grp .lt>span{cursor:grabbing}
+  #animal{position:absolute;inset:0}
+  #mode{
+    position:fixed;top:clamp(16px,2.2vw,36px);right:clamp(16px,2.2vw,36px);
+    display:flex;padding:4px;border-radius:999px;background:var(--pill);
+    box-shadow:0 10px 30px -18px rgba(20,50,20,.45);
+  }
+  #mode button{
+    border:0;cursor:pointer;border-radius:999px;background:transparent;color:var(--ink);
+    font:700 clamp(12px,.9vw,17px)/1 "Noto Sans KR",sans-serif;letter-spacing:.08em;
+    padding:clamp(9px,.8vw,14px) clamp(16px,1.5vw,26px);
+    transition:background .25s,color .25s;
+  }
+  #mode button[aria-pressed="true"]{background:var(--ink);color:var(--pill)}
+  #mode button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+  form{
+    position:fixed;left:50%;top:92%;transform:translate(-50%,-50%);
+    width:clamp(260px,36vw,760px);
+  }
+  input{
+    width:100%;border:0;outline:0;
+    height:clamp(48px,4.4vw,96px);
+    border-radius:999px;
+    background:var(--pill);
+    color:var(--ink);caret-color:var(--ink);
+    font:500 clamp(16px,1.45vw,32px)/1 "Noto Sans KR",sans-serif;
+    letter-spacing:.09em;text-transform:uppercase;
+    padding:0 clamp(22px,3.2vw,72px);
+    box-shadow:0 10px 30px -18px rgba(20,50,20,.45);
+  }
+  input::placeholder{color:rgba(31,74,42,.38)}
+  input:focus-visible{box-shadow:0 0 0 3px rgba(31,74,42,.25),0 10px 30px -18px rgba(20,50,20,.45)}
+  form.shake{animation:shake .35s}
+  @keyframes shake{25%{transform:translate(calc(-50% - 8px),-50%)}75%{transform:translate(calc(-50% + 8px),-50%)}}
+  @media (prefers-reduced-motion:reduce){
+    .lt{transition:none!important}
+  }
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="bg" id="bgNight"></div>
+<div id="stage">
+  <div id="animal"></div>
+</div>
+<div id="mode" role="group" aria-label="Background">
+  <button type="button" data-m="day" aria-pressed="true">DAY</button>
+  <button type="button" data-m="night" aria-pressed="false">NIGHT</button>
+</div>
+<form id="f" autocomplete="off">
+  <input id="q" type="text" spellcheck="false" placeholder="TYPE AN ANIMAL" aria-label="Animal name in English" maxlength="18">
+</form>
+
+<script>
+/* ------------------------------------------------------------------
+   LETTER ZOO — animals composed only of letters
+   (each letter: position, rotation, size. Nothing else.)
+   Units: ground is y=0, up is negative y. Animals face right.
+------------------------------------------------------------------- */
+const FONT = '600 100px "Cinzel"';
+const metricCache = {};
+let ctx;
+function M(ch){
+  if (metricCache[ch]) return metricCache[ch];
+  if (!ctx){ ctx = document.createElement('canvas').getContext('2d'); }
+  ctx.font = FONT;
+  const m = ctx.measureText(ch);
+  const fa = m.fontBoundingBoxAscent ?? 101, fd = m.fontBoundingBoxDescent ?? 30;
+  const base = (100 - (fa + fd)) / 2 + fa;                 // baseline inside a line-height:1 box
+  const top = base - m.actualBoundingBoxAscent;
+  const bot = base + m.actualBoundingBoxDescent;
+  const left = -m.actualBoundingBoxLeft, right = m.actualBoundingBoxRight;
+  return metricCache[ch] = {
+    cx:(left+right)/200, cy:(top+bot)/200,
+    w:(right-left)/100, h:(bot-top)/100
+  };
+}
+
+/* ---------- builder API ---------- */
+function makeAPI(parts){
+  const api = {
+    g(ch,x,y,s,r=0,col='#000'){ parts.push({ch,x,y,s,r,col}); },
+    // glyph standing on line gy (bottom of glyph touches it)
+    stand(ch,x,s,r=0,col='#000',gy=0){ parts.push({ch,x,y:gy - M(ch).h*s/2,s,r,col}); },
+    // long thin leg: letters stacked on top of each other
+    leg(ch,x,n,s,col,tilt=0){ const h=M(ch).h*s*0.96; for(let i=0;i<n;i++) parts.push({ch,x:x+Math.sin(tilt*Math.PI/180)*h*(i+.5),y:-h*(i+.5)-M(ch).h*s*0.02,s,r:tilt,col}); },
+    // letters radiating around a centre, their "up" pointing outward
+    ring(chars,cx,cy,rad,s,cols,a0=0,a1=360,n){
+      n = n || chars.length;
+      const full = Math.abs(a1-a0) >= 359.9;
+      for (let i=0;i<n;i++){
+        const t = full ? i/n : (n===1?0.5:i/(n-1));
+        const a = a0 + (a1-a0)*t, rad2 = a*Math.PI/180;
+        parts.push({ch:chars[i%chars.length], x:cx+rad*Math.cos(rad2), y:cy+rad*Math.sin(rad2), s:Array.isArray(s)?s[i%s.length]:s, r:a+90, col:cols[i%cols.length]});
+      }
+    },
+    // letters spaced along a polyline; tangent=true turns each letter's baseline along the path
+    path(chars,pts,s,cols,{tangent=true,extra=0,n}={}){
+      n = n || chars.length;
+      const seg=[];let L=0;
+      for(let i=1;i<pts.length;i++){const d=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);seg.push(d);L+=d;}
+      for(let i=0;i<n;i++){
+        let d = n===1?L/2:L*i/(n-1), k=0;
+        while(k<seg.length-1 && d>seg[k]){d-=seg[k];k++;}
+        const t = seg[k]?Math.min(1,d/seg[k]):0;
+        const [x0,y0]=pts[k],[x1,y1]=pts[k+1];
+        const ang = Math.atan2(y1-y0,x1-x0)*180/Math.PI;
+        const size = typeof s==='function'?s(i,n):s;
+        parts.push({ch:chars[i%chars.length],x:x0+(x1-x0)*t,y:y0+(y1-y0)*t,s:size,r:(tangent?ang:0)+extra,col:cols[i%cols.length]});
+      }
+    },
+    // smooth curve helper (quadratic bezier sampled to polyline)
+    quad(p0,p1,p2,steps=24){
+      const out=[];for(let i=0;i<=steps;i++){const t=i/steps,u=1-t;
+        out.push([u*u*p0[0]+2*u*t*p1[0]+t*t*p2[0],u*u*p0[1]+2*u*t*p1[1]+t*t*p2[1]]);}
+      return out;
+    }
+  };
+  return api;
+}
+
+/* ---------- ANIMALS ----------
+   Each: { c: palette, scale, float, draw(A,c) }                     */
+const ANIMALS = {
+  lion:{ scale:1, c:{a:'#ee5a1c',b:'#f6eedd',d:'#24432c'}, draw({g,stand,ring},c){
+    g('Z',-445,-350,250,-6,c.a);                     // tail
+    stand('P',-300,390,0,c.a);                       // haunch + hind leg
+    g('O',-170,-190,250,0,c.a); g('O',-45,-196,250,0,c.a); // belly
+    g('I',-110,-262,560,90,c.a);                     // spine
+    stand('I',130,390,0,c.a);                        // fore leg
+    ring('I',250,-335,168,128,[c.a,c.b],0,360,22);   // mane
+    g('O',212,-358,44,0,c.d); g('O',288,-358,44,0,c.d);     // eyes
+    g('I',212,-392,62,90,c.a); g('I',288,-392,62,90,c.a);   // brows
+    g('Y',250,-312,62,0,c.a);                        // nose
+    g('E',197,-300,64,90,c.a); g('E',303,-300,64,-90,c.a);  // whiskers
+    g('U',250,-268,46,0,c.a);                        // mouth
+  }},
+
+  dog:{ scale:.8, c:{a:'#d9b285',b:'#8b5a36',d:'#33241a'}, draw({g,stand},c){
+    g('J',-330,-325,200,205,c.a);                    // tail up
+    stand('I',-250,255,0,c.b); stand('I',-185,255,0,c.a);
+    stand('I',95,255,0,c.b);  stand('I',160,255,0,c.a);
+    g('D',-205,-222,235,0,c.a); g('O',-85,-218,235,0,c.a); g('G',40,-222,235,0,c.a); // body = D O G
+    g('O',190,-318,200,0,c.a);                       // head
+    g('D',268,-292,112,0,c.a);                       // muzzle
+    g('V',308,-312,50,-10,c.d);                      // nose
+    g('O',207,-342,30,0,c.d);                        // eye
+    g('D',145,-298,128,92,c.b);                      // floppy ear
+  }},
+
+  cat:{ scale:.72, c:{a:'#7f8189',b:'#55575f',d:'#232326',e:'#e8a0a4',y:'#d8c13a'}, draw({g,stand},c){
+    g('S',-170,-150,250,18,c.b);                     // tail
+    stand('A',0,450,0,c.a);                          // sitting body
+    g('C',-70,-28,80,90,c.b); g('C',70,-28,80,90,c.b);       // paws
+    g('O',10,-352,225,0,c.a);                        // head
+    g('A',-52,-452,105,-18,c.a); g('A',72,-452,105,18,c.a);  // ears
+    g('O',-22,-366,40,0,c.y); g('O',42,-366,40,0,c.y);       // eyes
+    g('I',-22,-366,30,0,c.d); g('I',42,-366,30,0,c.d);       // pupils
+    g('V',10,-334,36,0,c.e);                         // nose
+    g('T',10,-312,40,180,c.b);                       // mouth
+    g('E',-70,-326,62,90,c.b); g('E',90,-326,62,-90,c.b);    // whiskers
+  }},
+
+  rabbit:{ scale:.95, c:{a:'#f4efe4',b:'#e9a3ac',d:'#3a302b',e:'#cfc5b4'}, draw({g,stand},c){
+    g('O',-200,-120,90,0,c.e);                       // tail puff
+    g('O',-55,-118,310,0,c.a);                       // body
+    stand('L',45,120,0,c.a);                         // foot
+    g('O',95,-262,180,0,c.a);                        // head
+    g('V',100,-420,290,6,c.a);                       // ears
+    g('V',100,-430,170,6,c.b);                       // inner ears
+    g('O',122,-276,28,0,c.d);                        // eye
+    g('V',170,-254,32,-70,c.b);                      // nose
+    g('E',165,-236,40,-90,c.e);                      // whiskers
+  }},
+
+  elephant:{ scale:1.05, c:{a:'#8f969e',b:'#6f767e',d:'#26282b',e:'#f3ede0'}, draw({g,stand},c){
+    g('I',-335,-230,150,18,c.b);                     // tail
+    stand('I',-255,330,0,c.b); stand('I',-180,330,0,c.a);
+    stand('I',55,330,0,c.b);   stand('I',130,330,0,c.a);
+    g('D',-185,-305,440,-90,c.a); g('D',-35,-305,440,-90,c.a);   // humped back
+    g('D',130,-350,250,180,c.b);                     // ear
+    g('O',190,-360,230,0,c.a);                       // head
+    g('J',268,-190,300,-6,c.a);                      // trunk
+    g('C',232,-262,110,-118,c.e);                    // tusk
+    g('O',212,-382,30,0,c.d);                        // eye
+  }},
+
+  giraffe:{ scale:1.12, c:{a:'#e7ae48',b:'#9b5c24',d:'#3a2414'}, draw({g,stand,leg},c){
+    g('J',-185,-300,160,18,c.b);                     // tail
+    leg('I',-150,2,215,c.b); leg('I',-95,2,215,c.a);
+    leg('I',70,2,215,c.b);   leg('I',125,2,215,c.a);
+    g('O',-75,-335,300,0,c.a); g('O',50,-345,300,0,c.a);       // body
+    g('I',165,-520,400,26,c.a);                      // neck
+    g('N',140,-505,70,26,c.b); g('N',175,-575,70,26,c.b);      // mane
+    g('D',265,-688,165,32,c.a);                      // head
+    g('Y',224,-760,62,-12,c.b); g('Y',250,-766,62,10,c.b);     // ossicones
+    g('V',200,-708,56,-120,c.a);                     // ear
+    g('O',250,-708,22,0,c.d);                        // eye
+    [[-95,-330,46],[-20,-300,40],[40,-360,44],[90,-310,36],[150,-460,38],[185,-580,34],[-140,-170,30],[75,-170,30]]
+      .forEach(([x,y,s])=>g('O',x,y,s,0,c.b));       // spots
+  }},
+
+  zebra:{ scale:.92, c:{a:'#1f1f22',b:'#f8f5ed',d:'#1f1f22'}, draw({g,stand},c){
+    g('J',-300,-245,150,22,c.a);                     // tail
+    stand('I',-240,300,0,c.a); stand('I',-185,300,0,c.b);
+    stand('I',80,300,0,c.a);   stand('I',135,300,0,c.b);
+    for (let i=0;i<11;i++) g('I',-255+i*37,-262,235,i%2?-4:4,i%2?c.b:c.a);  // striped body
+    for (let i=0;i<5;i++) g('I',150+i*24,-330-i*36,170,32,i%2?c.a:c.b);    // striped neck
+    g('N',170,-400,70,32,c.a); g('N',205,-450,70,32,c.a);   // mane
+    g('D',290,-468,150,42,c.b);                      // head
+    g('O',330,-418,58,0,c.a);                        // muzzle
+    g('V',262,-540,64,186,c.a);                      // ear
+    g('O',283,-480,22,0,c.a);                        // eye
+  }},
+
+  horse:{ scale:.95, c:{a:'#8a5733',b:'#4a2d1b',d:'#22150d'}, draw({g,stand},c){
+    g('S',-310,-225,240,18,c.b);                     // tail
+    stand('I',-235,310,0,c.b); stand('I',-180,310,0,c.a);
+    stand('I',85,310,0,c.b);   stand('I',140,310,0,c.a);
+    g('O',-160,-262,245,0,c.a); g('O',-35,-262,245,0,c.a); g('O',80,-272,230,0,c.a);
+    g('I',165,-365,320,30,c.a);                      // neck
+    g('N',140,-400,82,30,c.b); g('N',172,-452,82,30,c.b); g('N',204,-500,82,30,c.b); // mane
+    g('D',272,-482,175,44,c.a);                      // head
+    g('V',236,-560,62,190,c.a);                      // ear
+    g('O',262,-492,24,0,c.d);                        // eye
+  }},
+
+  deer:{ scale:.9, c:{a:'#a9713f',b:'#f4ead8',d:'#2a1a10',e:'#6e4a2a'}, draw({g,stand},c){
+    g('V',-250,-280,70,-40,c.b);                     // white tail
+    stand('I',-200,330,0,c.e); stand('I',-150,330,0,c.a);
+    stand('I',80,330,0,c.e);   stand('I',130,330,0,c.a);
+    g('O',-130,-280,215,0,c.a); g('O',-20,-285,215,0,c.a); g('O',85,-292,200,0,c.a);
+    g('I',160,-380,260,28,c.a);                      // neck
+    g('D',238,-470,140,46,c.a);                      // head
+    g('Y',205,-585,140,-22,c.e); g('Y',250,-590,140,14,c.e);  // antlers
+    g('Y',178,-660,80,-40,c.e); g('Y',280,-668,80,32,c.e);
+    g('V',196,-520,58,-110,c.a);                     // ear
+    g('O',236,-480,22,0,c.d);
+    [[-150,-300],[-90,-320],[-30,-300]].forEach(([x,y])=>g('O',x,y,26,0,c.b));
+  }},
+
+  bear:{ scale:.95, c:{a:'#6b4428',b:'#3f2716',d:'#1e120a',e:'#b9885b'}, draw({g,stand},c){
+    stand('U',-200,270,180,c.b); stand('U',95,270,180,c.b);       // legs as arches
+    g('D',-65,-262,440,-90,c.a);                     // body dome
+    g('O',205,-272,210,0,c.a);                       // head
+    g('O',170,-368,74,0,c.a); g('O',240,-372,74,0,c.a);      // ears
+    g('D',282,-250,105,0,c.e);                       // snout
+    g('V',314,-266,42,0,c.d);                        // nose
+    g('O',222,-296,28,0,c.d);                        // eye
+  }},
+
+  fox:{ scale:.75, c:{a:'#e2702a',b:'#f6eee0',d:'#2a1a12'}, draw({g,stand},c){
+    g('D',-245,-215,235,160,c.a);                    // bushy tail
+    g('V',-335,-262,92,-58,c.b);                     // tail tip
+    stand('I',-185,225,0,c.d); stand('I',-135,225,0,c.d);
+    stand('I',60,225,0,c.d);   stand('I',110,225,0,c.d);
+    g('O',-110,-205,205,0,c.a); g('O',0,-205,205,0,c.a);
+    g('V',140,-282,230,-14,c.a);                     // face
+    g('V',146,-262,120,-14,c.b);                     // cheeks
+    g('A',72,-382,92,-22,c.a); g('A',206,-392,92,12,c.a);    // ears
+    g('O',122,-302,26,0,c.d); g('O',172,-308,26,0,c.d);      // eyes
+    g('O',164,-208,22,0,c.d);                        // nose
+  }},
+
+  wolf:{ scale:.85, c:{a:'#7c8189',b:'#e9e6e0',d:'#23262a',e:'#4d525a'}, draw({g,stand},c){
+    g('J',-300,-215,220,150,c.e);                    // tail
+    stand('I',-205,260,0,c.e); stand('I',-150,260,0,c.a);
+    stand('I',70,260,0,c.e);   stand('I',125,260,0,c.a);
+    g('O',-130,-232,225,0,c.a); g('O',-10,-232,225,0,c.a);
+    g('W',30,-180,110,0,c.b);                        // chest fur
+    g('V',160,-300,240,-30,c.a);                     // head
+    g('V',169,-276,120,-30,c.b);
+    g('A',83,-395,100,-18,c.e); g('A',217,-410,100,10,c.e);  // ears
+    g('O',135,-320,26,0,c.d); g('O',187,-328,26,0,c.d);
+    g('O',217,-228,22,0,c.d);
+  }},
+
+  tiger:{ scale:1, c:{a:'#f08a24',b:'#1e1a18',d:'#1e1a18',e:'#f6efe2'}, draw({g,stand},c){
+    g('S',-360,-250,240,14,c.a);                    // tail
+    stand('I',-275,330,0,c.a); stand('I',-215,330,0,c.a);
+    stand('I',95,330,0,c.a);   stand('I',155,330,0,c.a);
+    g('O',-170,-222,250,0,c.a); g('O',-45,-226,250,0,c.a); g('O',75,-236,240,0,c.a);
+    [-260,-210,-160,-110,-60,-10,40].forEach((x,i)=>g('I',x,-250,110,i%2?12:-8,c.b)); // stripes
+    g('W',-60,-150,80,0,c.e);                        // belly fur
+    g('O',225,-300,210,0,c.a);                       // head
+    g('O',178,-385,70,0,c.a); g('O',272,-385,70,0,c.a);      // ears
+    g('I',200,-355,48,90,c.b); g('I',250,-355,48,90,c.b); g('I',225,-375,50,0,c.b); // forehead stripes
+    g('O',200,-318,32,0,c.b); g('O',250,-318,32,0,c.b);      // eyes
+    g('V',225,-284,44,0,c.b);                        // nose
+    g('E',168,-270,56,90,c.e); g('E',282,-270,56,-90,c.e);   // whiskers
+  }},
+
+  panda:{ scale:.8, c:{a:'#f5f2ea',b:'#1e1e1e',d:'#1e1e1e'}, draw({g,stand},c){
+    g('O',0,-178,370,0,c.a);                         // body
+    g('O',-100,-52,120,0,c.b); g('O',100,-52,120,0,c.b);     // feet
+    g('J',-140,-230,190,-14,c.b); g('J',140,-230,190,194,c.b); // arms
+    g('O',-86,-470,96,0,c.b); g('O',86,-470,96,0,c.b);       // ears
+    g('O',0,-382,265,0,c.a);                         // head
+    g('O',-48,-392,74,24,c.b); g('O',48,-392,74,-24,c.b);    // eye patches
+    g('I',-48,-392,26,0,c.b); g('I',48,-392,26,0,c.b);       // eyes
+    g('V',0,-350,42,0,c.b);                          // nose
+    g('W',0,-322,46,0,c.b);                          // mouth
+  }},
+
+  pig:{ scale:.75, c:{a:'#f1a6b1',b:'#d9788a',d:'#5a2e36'}, draw({g,stand},c){
+    g('S',-215,-235,110,10,c.b);                     // curly tail
+    stand('I',-150,180,0,c.b); stand('I',-100,180,0,c.a);
+    stand('I',75,180,0,c.b);   stand('I',125,180,0,c.a);
+    g('O',-20,-215,350,0,c.a);                       // body
+    g('O',175,-245,195,0,c.a);                       // head
+    g('V',150,-340,86,200,c.b); g('V',212,-344,86,160,c.b); // ears
+    g('O',255,-226,92,0,c.b);                        // snout
+    g('I',245,-226,30,0,c.d); g('I',266,-226,30,0,c.d);     // nostrils
+    g('O',198,-270,24,0,c.d);                        // eye
+  }},
+
+  cow:{ scale:.98, c:{a:'#f5f1e8',b:'#26221f',d:'#26221f',e:'#eba6a6',h:'#d9c9a3'}, draw({g,stand},c){
+    g('J',-310,-235,190,10,c.b);                     // tail
+    stand('I',-235,290,0,c.b); stand('I',-180,290,0,c.a);
+    stand('I',75,290,0,c.b);   stand('I',130,290,0,c.a);
+    g('O',-165,-260,265,0,c.a); g('O',-30,-260,265,0,c.a); g('O',95,-268,250,0,c.a);
+    g('Q',-170,-270,120,30,c.b); g('C',-30,-238,120,-40,c.b); g('D',-95,-310,80,80,c.b); // patches
+    g('W',-100,-158,72,0,c.e);                       // udder
+    g('D',230,-310,190,90,c.a);                      // head (flat top)
+    g('C',180,-402,80,50,c.h); g('C',282,-402,80,130,c.h);  // horns
+    g('D',160,-370,70,200,c.b); g('D',300,-370,70,-20,c.b);  // ears
+    g('O',230,-252,100,0,c.e);                       // muzzle
+    g('O',205,-318,26,0,c.d); g('O',255,-318,26,0,c.d);
+  }},
+
+  sheep:{ scale:.95, c:{a:'#f3eddf',b:'#d6c8ac',d:'#3b342e'}, draw({g,stand},c){
+    stand('I',-140,175,0,c.d); stand('I',-90,175,0,c.d);
+    stand('I',65,175,0,c.d);   stand('I',115,175,0,c.d);
+    const wool=[[-170,-230],[-110,-290],[-40,-310],[30,-300],[95,-270],[120,-210],[60,-175],[-20,-170],[-100,-175],[-180,-170],[-70,-235],[10,-235],[70,-230]];
+    wool.forEach(([x,y],i)=>g('O',x,y,i>9?130:150,0,i%2?c.b:c.a));
+    g('D',200,-262,150,62,c.d);                      // face
+    g('D',160,-300,64,130,c.d);                      // ear
+    g('O',214,-276,24,0,c.a);                        // eye
+    g('O',150,-330,90,0,c.a);                        // tuft
+  }},
+
+  mouse:{ scale:.8, c:{a:'#a3a09c',b:'#e9a5ae',d:'#222',e:'#77736e'}, draw({g,stand,path,quad},c){
+    path('IIIIIII',quad([-150,-60],[-260,-20],[-330,-110]),70,[c.b],{tangent:true,extra:90}); // tail
+    stand('L',-60,90,0,c.e); stand('L',60,90,0,c.e);
+    g('D',-25,-118,250,-80,c.a);                     // body
+    g('V',120,-122,150,-96,c.a);                     // pointy face
+    g('O',72,-210,110,0,c.a); g('O',72,-210,66,0,c.b);       // ear
+    g('O',115,-140,22,0,c.d);                        // eye
+    g('O',182,-120,22,0,c.b);                        // nose
+    g('E',165,-100,40,-90,c.e);                      // whiskers
+  }},
+
+  monkey:{ scale:.9, c:{a:'#7a5233',b:'#dcb68e',d:'#24170e'}, draw({g,stand,path,quad},c){
+    g('J',-200,-200,330,180,c.a);                    // curled tail
+    g('O',-10,-170,300,0,c.a);                       // body
+    g('O',-10,-160,170,0,c.b);                       // belly
+    g('J',-120,-160,200,-20,c.a); g('J',100,-160,200,200,c.a);// arms
+    g('U',-70,-30,90,180,c.a); g('U',55,-30,90,180,c.a);      // legs
+    g('D',-110,-380,90,180,c.b); g('D',95,-380,90,0,c.b);    // ears
+    g('O',-8,-380,220,0,c.a);                        // head
+    g('O',-8,-365,150,0,c.b);                        // face
+    g('O',-34,-386,26,0,c.d); g('O',18,-386,26,0,c.d);
+    g('U',-8,-338,44,0,c.d);                         // mouth
+  }},
+
+  penguin:{ scale:.9, c:{a:'#1f252b',b:'#f6f3ec',d:'#1f252b',e:'#f09a2e'}, draw({g,stand},c){
+    stand('L',-40,85,0,c.e); stand('L',40,85,0,c.e);
+    g('D',-25,-228,440,180,c.a);                     // back
+    g('D',22,-210,345,0,c.b);                        // belly
+    g('J',-62,-260,190,24,c.a);                      // flipper
+    g('O',12,-430,180,0,c.a);                        // head
+    g('O',44,-442,30,0,c.b);                         // eye
+    g('V',112,-420,62,-92,c.e);                      // beak
+  }},
+
+  owl:{ scale:.9, c:{a:'#8b6b4a',b:'#d3b387',d:'#2a1e14',e:'#f2c230'}, draw({g,stand},c){
+    stand('W',-42,62,0,c.e); stand('W',42,62,0,c.e);  // feet
+    g('O',0,-235,390,0,c.a);                         // body
+    g('D',-138,-218,215,180,c.a); g('D',138,-218,215,0,c.a);  // wings
+    [[-36,-170],[36,-170],[0,-130],[-55,-125],[55,-125]].forEach(([x,y])=>g('V',x,y,46,0,c.b)); // chest
+    g('O',-58,-318,128,0,c.b); g('O',58,-318,128,0,c.b);      // eye discs
+    g('O',-58,-318,44,0,c.d); g('O',58,-318,44,0,c.d);
+    g('V',0,-276,52,0,c.e);                          // beak
+    g('V',-84,-445,96,206,c.a); g('V',84,-445,96,154,c.a);    // ear tufts
+  }},
+
+  bird:{ scale:.85, c:{a:'#d63b2c',b:'#9e2219',d:'#231c1a',e:'#f2a33a'}, draw({g,stand},c){
+    stand('I',-12,130,8,c.e); stand('I',24,130,-6,c.e);       // legs
+    g('V',-175,-190,160,-60,c.b);                     // tail
+    g('O',0,-165,210,0,c.a);                          // body
+    g('D',-30,-172,135,24,c.b);                       // wing
+    g('O',92,-258,140,0,c.a);                         // head
+    g('A',78,-330,76,-26,c.a);                        // crest
+    g('V',162,-252,58,-100,c.e);                      // beak
+    g('O',108,-268,22,0,c.d);
+  }},
+
+  duck:{ scale:.8, c:{a:'#f6d14b',b:'#e2b12a',d:'#2a2a2a',e:'#f08b2a'}, draw({g,stand},c){
+    stand('L',-20,90,0,c.e); stand('L',30,90,0,c.e);
+    g('V',-170,-190,95,-52,c.a);                     // tail
+    g('U',-20,-140,310,0,c.a);                       // body
+    g('D',-40,-160,150,-14,c.b);                     // wing
+    g('I',82,-222,150,-8,c.a);                       // neck
+    g('O',96,-292,150,0,c.a);                        // head
+    g('D',174,-280,84,4,c.e);                        // bill
+    g('O',112,-306,22,0,c.d);
+  }},
+
+  flamingo:{ scale:1, c:{a:'#f07da0',b:'#d9557e',d:'#222'}, draw({g,stand,leg},c){
+    leg('I',0,3,145,c.b);                            // standing leg
+    g('Z',38,-250,130,-6,c.b);                       // tucked leg
+    g('D',-20,-420,240,160,c.a);                     // body
+    g('V',-130,-430,80,-70,c.b);                     // tail
+    g('S',72,-555,280,8,c.a);                        // neck
+    g('O',96,-690,92,0,c.a);                         // head
+    g('J',150,-660,90,-30,c.d);                      // beak
+    g('O',96,-698,18,0,c.d);
+  }},
+
+  turtle:{ scale:.85, c:{a:'#4c7a39',b:'#2f5525',d:'#1f2a18',e:'#9db36a'}, draw({g,stand},c){
+    stand('U',-110,150,180,c.e); stand('U',100,150,180,c.e);
+    g('V',-232,-80,56,58,c.e);                       // tail
+    g('I',178,-110,110,-56,c.e);                     // neck
+    g('O',232,-138,118,0,c.e);                       // head
+    g('O',250,-150,20,0,c.d);
+    g('D',0,-178,400,-90,c.a);                       // shell
+    [[-70,-200],[0,-235],[70,-200],[0,-160],[-80,-140],[80,-140]].forEach(([x,y])=>g('O',x,y,74,0,c.b)); // plates
+    g('I',0,-86,470,90,c.b);                         // rim
+  }},
+
+  frog:{ scale:.8, c:{a:'#5eaa3b',b:'#2f6a22',d:'#1a1a1a',e:'#f2e9b8'}, draw({g,stand},c){
+    g('Z',-110,-95,210,0,c.b);                       // folded hind leg
+    g('D',0,-160,330,-62,c.a);                       // body
+    stand('L',110,160,0,c.b);                        // front leg
+    g('O',40,-305,96,0,c.a); g('O',132,-292,96,0,c.a);       // eyes
+    g('O',40,-305,34,0,c.d); g('O',132,-292,34,0,c.d);
+    g('U',118,-216,110,-12,c.b);                     // smile
+    g('O',-40,-170,44,0,c.b); g('O',-80,-220,34,0,c.b);      // spots
+  }},
+
+  snake:{ scale:.92, c:{a:'#3e8d3b',b:'#2a6328',d:'#1c1c1c',e:'#d23a2a'}, draw({g,path,quad},c){
+    const pts=[];for(let i=0;i<=40;i++){const x=-420+i*16;pts.push([x,-55-36*Math.sin(i*0.32)]);}
+    pts.push([240,-90],[268,-160],[275,-235]);
+    path('SNAKESNAKESNAKESNAKE',pts,(i,n)=>70+70*Math.min(1,i/6),[c.a,c.b],{tangent:true});
+    g('D',300,-280,130,-18,c.a);                     // head
+    g('O',300,-300,22,0,c.d);                        // eye
+    g('Y',382,-262,62,72,c.e);                       // tongue
+  }},
+
+  crocodile:{ scale:1, c:{a:'#4d6b39',b:'#2f4723',d:'#1a1a1a',e:'#f1eedf'}, draw({g,stand,path},c){
+    const tail=[[-560,-50],[-420,-70],[-280,-95]];
+    path('VVVVV',tail,(i,n)=>60+i*14,[c.a],{tangent:true,extra:180});
+    stand('L',-200,120,0,c.b); stand('L',40,120,0,c.b);
+    for(let i=0;i<6;i++) g('O',-250+i*58,-108,150,0,c.a);   // body
+    for(let i=0;i<8;i++) g('V',-280+i*48,-196,56,180,c.b);  // back spikes
+    g('I',225,-118,330,90,c.a);                      // upper jaw
+    g('I',225,-80,300,92,c.b);                       // lower jaw
+    for(let i=0;i<5;i++) g('V',150+i*36,-100,30,0,c.e);     // teeth
+    g('O',130,-158,52,0,c.a); g('O',130,-158,20,0,c.d);     // eye bump
+  }},
+
+  fish:{ scale:1, float:150, c:{a:'#f28a2a',b:'#d9621a',d:'#2a1a12',e:'#fff6e8'}, draw({g},c){
+    g('V',-176,0,200,-90,c.b);                       // tail
+    g('V',-10,-108,96,196,c.b);                      // dorsal fin
+    g('V',10,104,84,-24,c.b);                        // belly fin
+    g('D',0,0,300,0,c.a);                            // body
+    g('C',44,0,120,180,c.b);                         // gill
+    [[-30,-30],[-30,30],[-70,0]].forEach(([x,y])=>g('C',x,y,52,180,c.b)); // scales
+    g('O',80,-26,30,0,c.d);
+    g('O',170,-110,34,0,c.e); g('O',196,-170,24,0,c.e); g('O',180,-220,16,0,c.e); // bubbles
+  }},
+
+  whale:{ scale:1, float:210, c:{a:'#2f4d79',b:'#c9d6e3',d:'#1a2333',e:'#eaf2fa'}, draw({g},c){
+    g('Y',-330,-100,240,-58,c.a);                    // fluke
+    g('D',0,0,520,0,c.a);                            // body
+    g('D',70,70,300,6,c.b);                          // belly
+    g('V',30,150,110,-36,c.a);                       // fin
+    g('O',120,6,34,0,c.d);
+    g('U',176,62,60,-20,c.d);                        // mouth
+    g('Y',150,-270,130,0,c.e); g('I',112,-330,40,-30,c.e); g('I',188,-330,40,30,c.e); // spout
+  }},
+
+  butterfly:{ scale:1, float:170, c:{a:'#f2a43a',b:'#e2702a',d:'#2b2420',e:'#fff6e8'}, draw({g},c){
+    g('D',-120,-70,270,200,c.a); g('D',120,-70,270,-20,c.a);    // upper wings
+    g('D',-86,95,180,150,c.b);   g('D',86,95,180,30,c.b);       // lower wings
+    g('O',-140,-90,46,0,c.e); g('O',140,-90,46,0,c.e);
+    g('I',0,10,280,0,c.d);                           // body
+    g('O',0,-130,56,0,c.d);                          // head
+    g('V',0,-210,110,0,c.d);                         // antennae
+  }},
+};
+
+const VARIANTS = {
+  puppy:'dog',doggy:'dog',dogs:'dog', kitten:'cat',kitty:'cat', bunny:'rabbit',hare:'rabbit',
+  pony:'horse', bull:'cow',ox:'cow',cattle:'cow', lamb:'sheep', goldfish:'fish', toad:'frog',
+  croc:'crocodile',alligator:'crocodile',gator:'crocodile', rat:'mouse',mice:'mouse',hamster:'mouse',
+  robin:'bird',cardinal:'bird',sparrow:'bird',duckling:'duck', reindeer:'deer',moose:'deer',
+  tortoise:'turtle', ape:'monkey',chimp:'monkey', cobra:'snake',python:'snake', orca:'whale', moth:'butterfly',
+  polarbear:['bear',{a:'#f3efe6',b:'#d9d2c4',e:'#ffffff',d:'#1e1e1e'}],
+  blackcat:['cat',{a:'#26262a',b:'#141416',e:'#c98a8f'}],
+  panther:['cat',{a:'#26262a',b:'#141416',e:'#c98a8f'}],
+  leopard:['tiger',{a:'#e2a54a',b:'#5a3a1a'}],
+  cheetah:['tiger',{a:'#e6b45a',b:'#3a2a1a'}],
+  bluewhale:['whale',{a:'#3d6aa8'}],
+};
+
+/* unknown word → a creature built from its own letters */
+function generic(word){
+  const pals=[{a:'#b07a4c',b:'#6e4a2c'},{a:'#7f8a5a',b:'#4a5534'},{a:'#9a6b8a',b:'#5e3d55'},{a:'#c48a3a',b:'#7a5220'},{a:'#6e7f95',b:'#3f4c5e'}];
+  let h=0;for(const ch of word)h=(h*31+ch.charCodeAt(0))>>>0;
+  const c={...pals[h%pals.length],d:'#1f1a16'};
+  const L=word.toUpperCase().replace(/[^A-Z]/g,'')||'ZOO';
+  return {scale:.85,c,draw({g,stand},c){
+    const n=L.length, sz=Math.max(150,260-n*10), step=sz*.52, x0=-(n-1)*step/2-60;
+    g(L[n-1],x0-sz*.55,-300,sz*.9,-30,c.b);                    // tail = last letter
+    stand('I',x0+10,260,0,c.b); stand('I',x0+65,260,0,c.a);
+    stand('I',x0+(n-1)*step-40,260,0,c.b); stand('I',x0+(n-1)*step+15,260,0,c.a);
+    for(let i=0;i<n;i++) g(L[i],x0+i*step,-225-Math.sin(i/(n-1||1)*Math.PI)*24,sz,(i%2?4:-4),c.a); // body
+    const hx=x0+(n-1)*step+sz*.7;
+    g('I',hx-50,-300,190,30,c.a);
+    g(L[0],hx,-370,sz*1.05,0,c.a);                             // head = first letter
+    g('A',hx-40,-370-sz*.55,80,-15,c.b); g('A',hx+40,-370-sz*.55,80,15,c.b);
+    g('O',hx+20,-380,26,0,c.d);
+  }};
+}
+
+/* ---------- scene objects (typeable too) ---------- */
+ANIMALS.tree = {scale:.8, c:{a:'#1f4a26'}, draw({g,stand},c){
+  stand('T',0,520,0,c.a);
+  [['E',-120,-370,140,-30],['R',-50,-430,170,-8],['E',40,-450,160,8],['E',115,-410,150,20],['P',160,-340,150,6],
+   ['E',90,-330,140,-6],['E',-70,-335,150,6],['E',-150,-300,130,-14],['E',10,-370,150,0],['T',150,-290,120,0]]
+    .forEach(([ch,x,y,s,r])=>g(ch,x,y,s,r,c.a));
+}};
+ANIMALS.cloud = {scale:.95, float:430, c:{a:'#f5eedf'}, draw({g},c){
+  [['C',-210,40,180,-6],['C',-150,8,150,12],['L',-75,10,150,0],['O',20,-40,200,0],['U',118,4,150,0],['D',214,6,150,0]]
+    .forEach(([ch,x,y,s,r])=>g(ch,x,y,s,r,c.a));
+}};
+
+ANIMALS.sun = {scale:1.15, float:440, c:{a:'#f5a623',b:'#f7d14a',d:'#e2701c'}, draw({g,ring},c){
+  g('O',0,0,330,0,c.a);                                       // disc: nested rings
+  g('O',0,0,230,0,c.b); g('O',0,0,140,0,c.a); g('O',0,0,70,0,c.b);
+  ring('I',0,0,232,118,[c.a,c.b],0,360,16);                   // long rays
+  for(let i=0;i<16;i++){                                      // short rays: V tips pointing out
+    const a=(i+.5)/16*360, t=a*Math.PI/180;
+    g('V',322*Math.cos(t),322*Math.sin(t),66,a-90,c.d);
+  }
+}};
+ANIMALS.moon = {scale:1.1, float:470, c:{a:'#f2e2a4',b:'#fff3c8',d:'#b89d4f'}, draw({g},c){
+  g('C',0,0,480,-30,c.a);                                     // crescent
+  g('U',-88,-24,80,-30,c.d);                                  // closed eye
+  [[230,-170,74],[300,40,52],[170,170,40],[-260,-200,44]].forEach(([x,y,s])=>{   // stars = X + I
+    g('X',x,y,s,0,c.b); g('I',x,y,s*1.05,90,c.b);
+  });
+}};
+
+/* ---------- rendering ---------- */
+const $animal=document.getElementById('animal');
+const $q=document.getElementById('q'),$f=document.getElementById('f');
+const params=new URLSearchParams(location.search);
+const STATIC=params.has('static');
+
+function compose(spec,palette){
+  const parts=[];spec.draw(makeAPI(parts),{...spec.c,...(palette||{})});
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  for(const p of parts){
+    const m=M(p.ch),hw=m.w*p.s/2,hh=m.h*p.s/2,a=p.r*Math.PI/180,ca=Math.abs(Math.cos(a)),sa=Math.abs(Math.sin(a));
+    const ex=hw*ca+hh*sa,ey=hw*sa+hh*ca;
+    x0=Math.min(x0,p.x-ex);x1=Math.max(x1,p.x+ex);y0=Math.min(y0,p.y-ey);y1=Math.max(y1,p.y+ey);
+  }
+  return {parts,box:{x0,x1,y0,y1}};
+}
+
+function el(p,k){
+  const m=M(p.ch),fs=p.s*k;
+  const d=document.createElement('div');d.className='lt';
+  const s=document.createElement('span');s.textContent=p.ch;
+  s.style.fontSize=fs+'px';s.style.color=p.col;
+  s.style.left=(-m.cx*fs)+'px';s.style.top=(-m.cy*fs)+'px';
+  d.appendChild(s);
+  return d;
+}
+const T=(x,y,r,sc=1)=>`translate(${x}px,${y}px) rotate(${r}deg) scale(${sc})`;
+
+/* day / night backgrounds: horizon = where the field starts (fraction of height) */
+const SCENES={day:{horizon:.803},night:{horizon:.803}};
+let scene='day';
+function layout(){
+  const W=innerWidth,H=innerHeight;
+  const gy=H*(SCENES[scene].horizon+.015);
+  const base=Math.min(W/1380,H/860);
+  return {W,H,gy,base,narrow:W<760};
+}
+
+function resolve(word){
+  let w=word.toLowerCase().replace(/[^a-z]/g,'');
+  if(!w) return null;
+  let key=w, pal=null;
+  if(!ANIMALS[key] && VARIANTS[key]){const v=VARIANTS[key]; if(Array.isArray(v)){key=v[0];pal=v[1];}else key=v;}
+  if(!ANIMALS[key] && key.endsWith('s') && ANIMALS[key.slice(0,-1)]) key=key.slice(0,-1);
+  if(ANIMALS[key]) return {spec:ANIMALS[key],pal,known:true,word:w};
+  return {spec:generic(w),pal:null,known:false,word:w};
+}
+
+/* every creature on screen = one item {r, ax (0..1 of width), off, sc, grp, cx, cy} */
+const items=[];
+/* place a new creature where it overlaps the others least, near the centre, fully on screen */
+function pickSlot(w,fl){
+  if(w>=.96) return .5;
+  let best=.5,bs=Infinity;
+  for(let c=w/2+.015;c<=1-w/2-.015;c+=.005){
+    let ov=0;
+    for(const it of items){
+      if(!!it.r.spec.float!==fl) continue;
+      const ci=it.ax+it.off.x/innerWidth, wi=it.w*it.sc;
+      ov+=Math.max(0,(w+wi)/2-Math.abs(c-ci));
+    }
+    const sc=ov*10+Math.abs(c-.5)*.3;
+    if(sc<bs){bs=sc;best=c;}
+  }
+  return best;
+}
+function applyTransform(it){
+  it.grp.style.transform=`translate(${it.off.x}px,${it.off.y}px)`;
+}
+
+function fit(r,L){
+  const {parts,box}=compose(r.spec,r.pal);
+  const bw=box.x1-box.x0,bh=box.y1-box.y0;
+  let k=L.base*(r.spec.scale||1)*.72;
+  const maxH=r.spec.float?L.gy*.42:L.gy*.6, maxW=L.W*(L.narrow?.7:.34);
+  k=Math.min(k,maxH/bh,maxW/bw);
+  return {parts,box,k,w:bw*k/L.W};
+}
+function build(it,animate){
+  const L=layout(), r=it.r;
+  const f=fit(r,L), {parts,box,w}=f; it.w=w;
+  const ax=L.W*it.ax, cx=(box.x0+box.x1)/2;
+  const k0=f.k, lift=r.spec.float?(r.spec.float*k0):0;
+  const py0=y=>r.spec.float? (L.gy-lift+(y-box.y1)*k0) : (L.gy+y*k0);
+  const pivY=(py0(box.y0)+py0(box.y1))/2;      // resize pivot = centre of the creature
+  // size changes redraw the letters at their real font size (crisp vector text, no bitmap scaling)
+  const sc=it.sc, k=k0*sc, py=y=>pivY+(py0(y)-pivY)*sc;
+
+  if(!it.grp){it.grp=document.createElement('div');it.grp.className='grp';it.grp._item=it;$animal.appendChild(it.grp);}
+  it.grp.innerHTML='';
+  applyTransform(it);
+
+  const rect=$f.getBoundingClientRect(),ix=rect.left+rect.width*.3,iy=rect.top+rect.height/2;
+  const nodes=parts.map(p=>{
+    const X=ax+(p.x-cx)*k, Y=py(p.y), d=el(p,k);
+    if(animate&&!STATIC){
+      d.style.opacity='0';
+      d.style.transform=T(ix+(Math.random()-.5)*rect.width*.6,iy+(Math.random()-.5)*30,(Math.random()-.5)*360,.15);
+    }else d.style.transform=T(X,Y,p.r);
+    it.grp.appendChild(d);return [d,X,Y,p.r];
+  });
+  if(animate&&!STATIC){
+    it.grp.offsetWidth; // reflow
+    nodes.forEach(([d,X,Y,R],i)=>{
+      const dl=i*26+Math.random()*60;
+      d.style.transition=`transform 1.1s cubic-bezier(.2,1.3,.35,1) ${dl}ms, opacity .35s ease-out ${dl}ms`;
+      d.style.transform=T(X,Y,R);d.style.opacity='1';
+    });
+  }
+}
+
+function add(word){
+  const r=resolve(word); if(!r) return false;
+  const w=fit(r,layout()).w;
+  const it={r,w,ax:pickSlot(w,!!r.spec.float),off:{x:0,y:0},sc:1,grp:null};
+  items.push(it); build(it,true);
+  if(!r.known){$f.classList.remove('shake');void $f.offsetWidth;$f.classList.add('shake');}
+  return true;
+}
+function relayout(){ items.forEach(it=>build(it,false)); }
+
+/* ---------- press & hold: drag to move, wheel to resize ---------- */
+let drag=null;
+$animal.addEventListener('pointerdown',e=>{
+  if(e.button!==0) return;
+  const g=e.target.closest('.grp'); if(!g) return;
+  e.preventDefault();
+  const it=g._item;
+  $animal.appendChild(g);                       // bring to front
+  drag={it,id:e.pointerId,sx:e.clientX,sy:e.clientY,ox:it.off.x,oy:it.off.y};
+  document.body.classList.add('dragging');
+  try{e.target.setPointerCapture(e.pointerId);}catch(_){}
+});
+addEventListener('pointermove',e=>{
+  if(!drag||e.pointerId!==drag.id) return;
+  drag.it.off={x:drag.ox+e.clientX-drag.sx,y:drag.oy+e.clientY-drag.sy};
+  applyTransform(drag.it);
+});
+const endDrag=e=>{ if(drag&&e.pointerId===drag.id){drag=null;document.body.classList.remove('dragging');} };
+addEventListener('pointerup',endDrag);addEventListener('pointercancel',endDrag);
+addEventListener('wheel',e=>{
+  if(!drag) return;
+  e.preventDefault();
+  const it=drag.it;
+  it.sc=Math.min(5,Math.max(.15,it.sc*Math.exp(-e.deltaY*.0015)));   // wheel up = bigger, down = smaller
+  if(!it.raf) it.raf=requestAnimationFrame(()=>{it.raf=0;build(it,false);});
+},{passive:false});
+
+/* ---------- day / night ---------- */
+const $bgN=document.getElementById('bgNight');
+document.querySelectorAll('#mode button').forEach(b=>b.addEventListener('click',()=>{
+  if(b.dataset.m===scene) return;
+  scene=b.dataset.m;
+  document.querySelectorAll('#mode button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+  $bgN.classList.toggle('on',scene==='night');
+  relayout();                                   // creatures stay standing on the new field line
+}));
+
+/* ---------- input ---------- */
+$f.addEventListener('submit',e=>{
+  e.preventDefault();
+  if(add($q.value)) $q.value='';
+});
+let rz;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(relayout,120);});
+
+Promise.race([document.fonts.load(FONT,'ABCDEFGHIJKLMNOPQRSTUVWXYZ'),new Promise(r=>setTimeout(r,2500))])
+  .then(()=>document.fonts.ready).then(()=>{
+    (params.get('a')||'').split(',').filter(Boolean).forEach(add);   // ?a=lion,cat only for previews
+    if(params.get('m')==='night') document.querySelector('#mode [data-m=night]').click();
+    if(!matchMedia('(pointer:coarse)').matches) $q.focus();
+  });
+</script>
+</body>
+</html>
