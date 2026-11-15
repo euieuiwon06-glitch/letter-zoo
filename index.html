@@ -72,14 +72,17 @@
 
   /* "ANIMALS" button next to the input */
   #openIntro{
-    display:inline-flex;align-items:center;gap:.55em;flex:none;
-    height:clamp(38px,3vw,62px);padding:0 clamp(16px,1.5vw,30px);
+    display:inline-flex;align-items:center;justify-content:center;gap:.6em;flex:none;
+    height:clamp(38px,3vw,62px);padding:0 clamp(18px,1.6vw,32px);
     border:0;border-radius:999px;cursor:pointer;
     background:var(--pill);color:var(--ink);
     font:500 clamp(13px,1vw,21px)/1 "Noto Sans KR",sans-serif;letter-spacing:.09em;
     box-shadow:0 10px 30px -18px rgba(20,50,20,.45);
   }
-  #openIntro svg{width:1em;height:1em}
+  /* label + arrow behave as one group, centred in the pill:
+     the label box is trimmed to the capital height so it centres like the icon */
+  #openIntro .lbl{display:block;text-box:trim-both cap alphabetic;margin-right:-.09em}
+  #openIntro svg{display:block;width:.74em;height:.74em;flex:none}
   #openIntro:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 
   /* intro popup — panel keeps the reference ratio (991 x 419); inside sizes are in panel-width units */
@@ -113,10 +116,11 @@
   .panel .x svg{width:2.9cqw;height:2.9cqw}
   .panel .x:focus-visible{outline:2px solid var(--ink)}
   .grid{
-    position:absolute;left:8.6cqw;width:82.8cqw;top:6.4cqw;
-    display:grid;grid-template-columns:repeat(5,1fr);grid-auto-rows:9.55cqw;
+    position:absolute;left:8.6cqw;width:82.8cqw;top:6.6cqw;
+    display:grid;grid-template-columns:repeat(5,1fr);row-gap:2cqw;
   }
   .tile{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:.75cqw}
+  .tile .ic{height:5.7cqw;display:flex;align-items:flex-end}
   .tile svg{display:block;fill:var(--ink)}
   .tile b{font:700 1.5cqw/1 "Cinzel",serif;letter-spacing:.09em}
   .start{
@@ -137,7 +141,8 @@
     .panel h2{position:static;font-size:6cqw;margin:0 9cqw 5cqw}
     .panel .x{top:3.5cqw;right:4cqw;width:9cqw;height:9cqw}
     .panel .x svg{width:6cqw;height:6cqw}
-    .grid{position:static;width:auto;grid-template-columns:repeat(3,1fr);grid-auto-rows:auto;row-gap:4cqw}
+    .grid{position:static;width:auto;grid-template-columns:repeat(3,1fr);row-gap:6.5cqw}
+    .tile .ic{height:auto}
     .tile{gap:1.6cqw}
     .tile b{font-size:3.3cqw}
     .start{position:static;transform:none;margin-top:5cqw;width:44cqw;height:10cqw;font-size:4.4cqw;gap:2cqw}
@@ -162,8 +167,8 @@
   <form id="f" autocomplete="off">
     <input id="q" type="text" spellcheck="false" placeholder="TYPE AN ANIMAL" aria-label="Animal name in English" maxlength="18">
   </form>
-  <button id="openIntro" type="button" aria-haspopup="dialog">ANIMALS
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>
+  <button id="openIntro" type="button" aria-haspopup="dialog"><span class="lbl">ANIMALS</span>
+    <svg viewBox="5.9 5.9 12.2 12.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>
   </button>
 </div>
 
@@ -876,10 +881,10 @@ const MENU=['rabbit','cat','dog','deer','bear','fox','horse','elephant','giraffe
 const $intro=document.getElementById('intro'), $grid=$intro.querySelector('.grid');
 function buildMenu(){
   // 1 reference px = 100/991 cqw, so every silhouette keeps its size relative to the panel
-  const narrow=matchMedia('(max-width:700px)').matches, u=narrow?.22:100/991;
+  const narrow=matchMedia('(max-width:700px)').matches, u=narrow?.21:.8*100/991;
   $grid.innerHTML=MENU.map(w=>{
     const v=SIL[w];
-    return `<div class="tile"><svg viewBox="0 0 ${v.w} ${v.h}" style="width:${v.w*u}cqw;height:${v.h*u}cqw" aria-hidden="true"><path d="${v.d}"/></svg><b>${w.toUpperCase()}</b></div>`;
+    return `<div class="tile"><div class="ic"><svg viewBox="0 0 ${v.w} ${v.h}" style="width:${v.w*u}cqw;height:${v.h*u}cqw" aria-hidden="true"><path d="${v.d}"/></svg></div><b>${w.toUpperCase()}</b></div>`;
   }).join('');
 }
 buildMenu();
