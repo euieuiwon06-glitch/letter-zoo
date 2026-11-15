@@ -87,26 +87,26 @@
 
   /* intro popup — panel keeps the reference ratio (991 x 419); inside sizes are in panel-width units */
   #intro{
-    position:fixed;inset:0;display:flex;justify-content:center;align-items:flex-start;
-    padding:clamp(20px,4.5vh,60px) 16px 0;
+    position:fixed;inset:0;display:flex;justify-content:center;align-items:center;
+    padding:16px 16px clamp(70px,11vh,120px);
     opacity:0;pointer-events:none;transition:opacity .35s ease;
   }
   #intro.open{opacity:1;pointer-events:auto}
   .panel{
     position:relative;container-type:inline-size;
-    width:min(1080px,92vw,calc((82vh - 90px) * 991 / 419));
-    aspect-ratio:991/419;
+    width:min(1080px,92vw,calc((100vh - 150px) / .6));
+    padding:2.3cqw 0 3.6cqw;
     border-radius:4.2cqw;
-    background:rgba(255,255,255,.24);
-    -webkit-backdrop-filter:blur(16px) saturate(1.1);backdrop-filter:blur(16px) saturate(1.1);
+    background:rgba(255,255,255,.17);
+    -webkit-backdrop-filter:blur(13px) saturate(1.1);backdrop-filter:blur(13px) saturate(1.1);
     box-shadow:0 30px 70px -45px rgba(20,40,30,.5);
     color:var(--ink);text-align:center;
     transform:translateY(10px) scale(.985);transition:transform .45s cubic-bezier(.22,1,.36,1);
   }
   #intro.open .panel{transform:none}
   .panel h2{
-    position:absolute;left:0;right:0;top:1.75cqw;
     font:italic 600 3.05cqw/1.15 "EB Garamond",serif;
+    margin:0 8cqw;
   }
   .panel .x{
     position:absolute;top:1.9cqw;right:3.6cqw;
@@ -116,37 +116,24 @@
   .panel .x svg{width:2.9cqw;height:2.9cqw}
   .panel .x:focus-visible{outline:2px solid var(--ink)}
   .grid{
-    position:absolute;left:8.6cqw;width:82.8cqw;top:6.6cqw;
-    display:grid;grid-template-columns:repeat(5,1fr);row-gap:2cqw;
+    width:82.8cqw;margin:3.6cqw auto 0;
+    display:grid;grid-template-columns:repeat(5,1fr);row-gap:5cqw;
   }
   .tile{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:.75cqw}
-  .tile .ic{height:5.7cqw;display:flex;align-items:flex-end}
+  .tile .ic{height:6.4cqw;display:flex;align-items:flex-end}
   .tile svg{display:block;fill:var(--ink)}
   .tile b{font:700 1.5cqw/1 "Cinzel",serif;letter-spacing:.09em}
-  .start{
-    position:absolute;left:50%;bottom:1.65cqw;transform:translateX(-50%);
-    width:20.1cqw;height:4.45cqw;
-    display:inline-flex;align-items:center;justify-content:center;gap:.9cqw;
-    border:0;border-radius:999px;cursor:pointer;
-    background:#0f4a1f;color:#f6efe1;
-    font:600 2.05cqw/1 "Cinzel",serif;letter-spacing:.1em;
-    box-shadow:0 1.2cqw 2.4cqw -1.5cqw rgba(10,40,15,.75);
-  }
-  .start svg{width:2.1cqw;height:2.1cqw}
-  .start:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 
   /* narrow screens: the fixed ratio would make everything tiny, so let it grow taller */
   @media (max-width:700px){
-    .panel{width:92vw;aspect-ratio:auto;padding:5cqw 4cqw 4cqw;border-radius:7cqw}
-    .panel h2{position:static;font-size:6cqw;margin:0 9cqw 5cqw}
+    .panel{width:92vw;padding:5cqw 4cqw 4cqw;border-radius:7cqw}
+    .panel h2{font-size:6cqw;margin:0 9cqw 5cqw}
     .panel .x{top:3.5cqw;right:4cqw;width:9cqw;height:9cqw}
     .panel .x svg{width:6cqw;height:6cqw}
-    .grid{position:static;width:auto;grid-template-columns:repeat(3,1fr);row-gap:6.5cqw}
+    .grid{width:auto;margin:0;grid-template-columns:repeat(3,1fr);row-gap:8cqw}
     .tile .ic{height:auto}
     .tile{gap:1.6cqw}
     .tile b{font-size:3.3cqw}
-    .start{position:static;transform:none;margin-top:5cqw;width:44cqw;height:10cqw;font-size:4.4cqw;gap:2cqw}
-    .start svg{width:4.6cqw;height:4.6cqw}
   }
   @media (prefers-reduced-motion:reduce){
     .lt{transition:none!important}
@@ -179,9 +166,6 @@
     </button>
     <h2 id="introTitle">Type an animal name and press Enter.</h2>
     <div class="grid"></div>
-    <button class="start" type="button">START
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg>
-    </button>
   </div>
 </div>
 
@@ -881,7 +865,7 @@ const MENU=['rabbit','cat','dog','deer','bear','fox','horse','elephant','giraffe
 const $intro=document.getElementById('intro'), $grid=$intro.querySelector('.grid');
 function buildMenu(){
   // 1 reference px = 100/991 cqw, so every silhouette keeps its size relative to the panel
-  const narrow=matchMedia('(max-width:700px)').matches, u=narrow?.21:.8*100/991;
+  const narrow=matchMedia('(max-width:700px)').matches, u=narrow?.21:.9*100/991;
   $grid.innerHTML=MENU.map(w=>{
     const v=SIL[w];
     return `<div class="tile"><div class="ic"><svg viewBox="0 0 ${v.w} ${v.h}" style="width:${v.w*u}cqw;height:${v.h*u}cqw" aria-hidden="true"><path d="${v.d}"/></svg></div><b>${w.toUpperCase()}</b></div>`;
@@ -893,7 +877,6 @@ function openIntro(){ $intro.classList.add('open'); if(document.activeElement===
 function closeIntro(){ if(!$intro.classList.contains('open')) return; $intro.classList.remove('open'); if(!matchMedia('(pointer:coarse)').matches) $q.focus(); }
 document.getElementById('openIntro').addEventListener('click',openIntro);
 $intro.querySelector('.x').addEventListener('click',closeIntro);
-$intro.querySelector('.start').addEventListener('click',closeIntro);
 $intro.addEventListener('click',e=>{ if(e.target===$intro) closeIntro(); });
 addEventListener('keydown',e=>{ if(e.key==='Escape') closeIntro(); });
 
