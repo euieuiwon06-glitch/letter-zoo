@@ -6,7 +6,7 @@
 <title>Letter Zoo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Noto+Sans+KR:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=EB+Garamond:ital,wght@1,600&family=Noto+Sans+KR:wght@500;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --ink:#1f4a2a;
@@ -49,10 +49,11 @@
   #mode button[aria-pressed="true"]{background:var(--ink);color:var(--pill)}
   #mode button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 
-  form{
+  #bar{
     position:fixed;left:50%;top:92%;transform:translate(-50%,-50%);
-    width:clamp(220px,26vw,520px);
+    display:flex;align-items:center;gap:clamp(8px,.8vw,14px);
   }
+  form{width:clamp(220px,26vw,520px)}
   input{
     width:100%;border:0;outline:0;
     height:clamp(38px,3vw,62px);
@@ -67,7 +68,87 @@
   input::placeholder{color:rgba(31,74,42,.38)}
   input:focus-visible{box-shadow:0 0 0 3px rgba(31,74,42,.25),0 10px 30px -18px rgba(20,50,20,.45)}
   form.shake{animation:shake .35s}
-  @keyframes shake{25%{transform:translate(calc(-50% - 8px),-50%)}75%{transform:translate(calc(-50% + 8px),-50%)}}
+  @keyframes shake{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+
+  /* "ANIMALS" button next to the input */
+  #openIntro{
+    display:inline-flex;align-items:center;gap:.55em;flex:none;
+    height:clamp(38px,3vw,62px);padding:0 clamp(16px,1.5vw,30px);
+    border:0;border-radius:999px;cursor:pointer;
+    background:var(--pill);color:var(--ink);
+    font:700 clamp(12px,.9vw,18px)/1 "Cinzel",serif;letter-spacing:.08em;
+    box-shadow:0 10px 30px -18px rgba(20,50,20,.45);
+  }
+  #openIntro svg{width:1em;height:1em}
+  #openIntro:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+  /* intro popup */
+  #intro{
+    position:fixed;inset:0;display:flex;justify-content:center;align-items:flex-start;
+    padding:clamp(24px,7vh,90px) 16px 0;
+    opacity:0;pointer-events:none;transition:opacity .35s ease;
+  }
+  #intro.open{opacity:1;pointer-events:auto}
+  .panel{
+    position:relative;width:min(980px,100%);
+    max-height:calc(92vh - clamp(24px,7vh,90px) - 70px);overflow:auto;
+    padding:clamp(22px,2.4vw,40px) clamp(20px,3vw,56px) clamp(22px,2.4vw,36px);
+    border-radius:clamp(26px,3vw,46px);
+    background:rgba(255,255,255,.26);
+    border:1.5px solid rgba(255,255,255,.8);
+    -webkit-backdrop-filter:blur(14px) saturate(1.15);backdrop-filter:blur(14px) saturate(1.15);
+    box-shadow:0 30px 60px -40px rgba(20,40,30,.55);
+    text-align:center;color:var(--ink);
+    transform:translateY(10px) scale(.985);transition:transform .45s cubic-bezier(.22,1,.36,1);
+  }
+  #intro.open .panel{transform:none}
+  .panel h2{
+    font:italic 600 clamp(20px,2.2vw,36px)/1.15 "EB Garamond",serif;
+    margin:0 2.2em clamp(14px,1.8vw,28px);
+  }
+  .panel .x{
+    position:absolute;top:clamp(14px,1.6vw,26px);right:clamp(16px,1.8vw,30px);
+    width:40px;height:40px;display:grid;place-items:center;
+    border:0;background:none;color:var(--ink);cursor:pointer;border-radius:50%;
+  }
+  .panel .x svg{width:26px;height:26px}
+  .panel .x:hover{background:rgba(255,255,255,.35)}
+  .grid{
+    display:grid;grid-template-columns:repeat(4,1fr);
+    gap:clamp(6px,1vw,14px) clamp(8px,1.5vw,24px);
+    max-width:760px;margin:0 auto;
+  }
+  .tile{
+    border:0;background:none;cursor:pointer;color:var(--ink);
+    display:flex;flex-direction:column;align-items:center;gap:6px;
+    padding:8px 4px 10px;border-radius:18px;
+    transition:background .2s;
+  }
+  .tile:hover{background:rgba(255,255,255,.32)}
+  .tile:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+  .thumb{position:relative;width:118px;height:68px;margin-bottom:4px;pointer-events:none}
+  .tile b{font:700 clamp(11px,.85vw,14px)/1 "Cinzel",serif;letter-spacing:.1em}
+  .how{
+    margin:clamp(12px,1.4vw,20px) auto 0;max-width:760px;text-wrap:balance;
+    font:italic 600 clamp(14px,1.15vw,19px)/1.45 "EB Garamond",serif;opacity:.82;
+  }
+  .start{
+    margin-top:clamp(14px,1.6vw,24px);
+    display:inline-flex;align-items:center;gap:.6em;
+    border:0;border-radius:999px;cursor:pointer;
+    background:var(--ink);color:#f6efe1;
+    font:700 clamp(14px,1.2vw,20px)/1 "Cinzel",serif;letter-spacing:.12em;
+    padding:clamp(12px,1vw,16px) clamp(30px,3vw,52px);
+    box-shadow:0 12px 26px -16px rgba(20,50,20,.7);
+    transition:transform .2s;
+  }
+  .start:hover{transform:translateY(-1px)}
+  .start svg{width:1.05em;height:1.05em}
+  .start:focus-visible{outline:2px solid #fff;outline-offset:3px}
+  @media (max-width:640px){
+    .grid{grid-template-columns:repeat(3,1fr)}
+    .thumb{width:84px;height:52px}
+  }
   @media (prefers-reduced-motion:reduce){
     .lt{transition:none!important}
   }
@@ -83,9 +164,28 @@
   <button type="button" data-m="day" aria-pressed="true">DAY</button>
   <button type="button" data-m="night" aria-pressed="false">NIGHT</button>
 </div>
-<form id="f" autocomplete="off">
-  <input id="q" type="text" spellcheck="false" placeholder="TYPE AN ANIMAL" aria-label="Animal name in English" maxlength="18">
-</form>
+<div id="bar">
+  <form id="f" autocomplete="off">
+    <input id="q" type="text" spellcheck="false" placeholder="TYPE AN ANIMAL" aria-label="Animal name in English" maxlength="18">
+  </form>
+  <button id="openIntro" type="button" aria-haspopup="dialog">ANIMALS
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>
+  </button>
+</div>
+
+<div id="intro" role="dialog" aria-modal="true" aria-labelledby="introTitle">
+  <div class="panel">
+    <button class="x" type="button" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 5l14 14M19 5 5 19"/></svg>
+    </button>
+    <h2 id="introTitle">Type an animal name and press Enter.</h2>
+    <div class="grid"></div>
+    <p class="how">Drag to move &middot; hold and scroll to resize &middot; double-click to flip &middot; hold and press Delete to remove</p>
+    <button class="start" type="button">START
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg>
+    </button>
+  </div>
+</div>
 
 <script>
 /* ------------------------------------------------------------------
@@ -774,11 +874,48 @@ $f.addEventListener('submit',e=>{
 });
 let rz;addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(relayout,120);});
 
+/* ---------- intro popup ---------- */
+const $intro=document.getElementById('intro'), $grid=$intro.querySelector('.grid');
+const MENU=['dog','cat','wolf','deer','lion','bird','horse','bear','sun','moon','cloud','tree'];
+function thumb(word,box){
+  const {parts,box:b}=compose(ANIMALS[word]);
+  const W=box.clientWidth,H=box.clientHeight;
+  const k=Math.min(W/(b.x1-b.x0),H/(b.y1-b.y0));
+  const cx=(b.x0+b.x1)/2, cy=(b.y0+b.y1)/2;
+  box.innerHTML='';
+  for(const p of parts){
+    const d=el({...p,col:'#1f4a2a'},k);
+    d.style.transform=T(W/2+(p.x-cx)*k,H/2+(p.y-cy)*k,p.r);
+    box.appendChild(d);
+  }
+}
+function buildMenu(){
+  $grid.innerHTML='';
+  for(const w of MENU){
+    const t=document.createElement('button');t.type='button';t.className='tile';
+    t.setAttribute('aria-label','Add '+w);
+    t.innerHTML='<div class="thumb"></div><b>'+w.toUpperCase()+'</b>';
+    t.addEventListener('click',()=>{closeIntro();add(w);});
+    $grid.appendChild(t);
+    thumb(w,t.firstChild);
+  }
+}
+function openIntro(){ $intro.classList.add('open'); setTimeout(()=>$intro.querySelector('.start').focus({preventScroll:true}),50); }
+function closeIntro(){ if(!$intro.classList.contains('open')) return; $intro.classList.remove('open'); if(!matchMedia('(pointer:coarse)').matches) $q.focus(); }
+document.getElementById('openIntro').addEventListener('click',openIntro);
+$intro.querySelector('.x').addEventListener('click',closeIntro);
+$intro.querySelector('.start').addEventListener('click',closeIntro);
+$intro.addEventListener('click',e=>{ if(e.target===$intro) closeIntro(); });
+addEventListener('keydown',e=>{ if(e.key==='Escape') closeIntro(); });
+addEventListener('resize',()=>{ clearTimeout(buildMenu.t); buildMenu.t=setTimeout(buildMenu,150); });
+
 Promise.race([document.fonts.load(FONT,'ABCDEFGHIJKLMNOPQRSTUVWXYZ'),new Promise(r=>setTimeout(r,2500))])
   .then(()=>document.fonts.ready).then(()=>{
+    buildMenu();
     (params.get('a')||'').split(',').filter(Boolean).forEach(add);   // ?a=lion,cat only for previews
     if(params.get('m')==='night') document.querySelector('#mode [data-m=night]').click();
-    if(!matchMedia('(pointer:coarse)').matches) $q.focus();
+    if(params.has('nointro')) { if(!matchMedia('(pointer:coarse)').matches) $q.focus(); }
+    else openIntro();                                                 // explain the site on every visit
   });
 </script>
 </body>
