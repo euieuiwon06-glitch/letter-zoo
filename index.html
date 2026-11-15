@@ -615,7 +615,7 @@ function el(p,k){
   d.appendChild(s);
   return d;
 }
-const T=(x,y,r,sc=1)=>`translate(${x}px,${y}px) rotate(${r}deg) scale(${sc})`;
+const T=(x,y,r,sc=1,fx=1)=>`translate(${x}px,${y}px) rotate(${r}deg) scale(${sc*fx},${sc})`;
 
 /* day / night backgrounds: horizon = where the field starts (fraction of height) */
 const SCENES={day:{horizon:.803},night:{horizon:.803}};
@@ -683,19 +683,20 @@ function build(it,animate){
 
   const rect=$f.getBoundingClientRect(),ix=rect.left+rect.width*.3,iy=rect.top+rect.height/2;
   const nodes=parts.map(p=>{
-    const X=ax+(p.x-cx)*k, Y=py(p.y), d=el(p,k);
+    // flipped = true mirror image: mirrored position, negated rotation, mirrored glyph
+    const fx=it.flip?-1:1, X=ax+fx*(p.x-cx)*k, Y=py(p.y), R=fx*p.r, d=el(p,k);
     if(animate&&!STATIC){
       d.style.opacity='0';
       d.style.transform=T(ix+(Math.random()-.5)*rect.width*.6,iy+(Math.random()-.5)*30,(Math.random()-.5)*360,.15);
-    }else d.style.transform=T(X,Y,p.r);
-    it.grp.appendChild(d);return [d,X,Y,p.r];
+    }else d.style.transform=T(X,Y,R,1,fx);
+    it.grp.appendChild(d);return [d,X,Y,R,fx];
   });
   if(animate&&!STATIC){
     it.grp.offsetWidth; // reflow
-    nodes.forEach(([d,X,Y,R],i)=>{
+    nodes.forEach(([d,X,Y,R,fx],i)=>{
       const dl=i*26+Math.random()*60;
       d.style.transition=`transform 1.1s cubic-bezier(.2,1.3,.35,1) ${dl}ms, opacity .35s ease-out ${dl}ms`;
-      d.style.transform=T(X,Y,R);d.style.opacity='1';
+      d.style.transform=T(X,Y,R,1,fx);d.style.opacity='1';
     });
   }
 }
@@ -711,13 +712,18 @@ function add(word){
 function relayout(){ items.forEach(it=>build(it,false)); }
 
 /* ---------- press & hold: drag to move, wheel to resize ---------- */
-let drag=null;
+let drag=null, lastTap={};
 $animal.addEventListener('pointerdown',e=>{
   if(e.button!==0) return;
   const g=e.target.closest('.grp'); if(!g) return;
   e.preventDefault();
   const it=g._item;
-  $animal.appendChild(g);                       // bring to front
+  // double-click (two presses on the same creature within 350ms): mirror left/right
+  const now=performance.now();
+  if(lastTap.it===it && now-lastTap.t<350 && Math.hypot(e.clientX-lastTap.x,e.clientY-lastTap.y)<10){
+    it.flip=!it.flip; build(it,false); lastTap={};
+  } else lastTap={it,t:now,x:e.clientX,y:e.clientY};
+  if($animal.lastElementChild!==g) $animal.appendChild(g);   // bring to front
   drag={it,id:e.pointerId,sx:e.clientX,sy:e.clientY,ox:it.off.x,oy:it.off.y};
   document.body.classList.add('dragging');
   try{e.target.setPointerCapture(e.pointerId);}catch(_){}
@@ -736,6 +742,20 @@ addEventListener('wheel',e=>{
   it.sc=Math.min(5,Math.max(.15,it.sc*Math.exp(-e.deltaY*.0015)));   // wheel up = bigger, down = smaller
   if(!it.raf) it.raf=requestAnimationFrame(()=>{it.raf=0;build(it,false);});
 },{passive:false});
+
+/* hold + Delete key: remove */
+addEventListener('keydown',e=>{
+  if(!drag||e.key!=='Delete') return;
+  e.preventDefault();
+  const it=drag.it; drag=null; document.body.classList.remove('dragging');
+  items.splice(items.indexOf(it),1);
+  [...it.grp.children].forEach((d,i)=>{
+    d.style.transition=`transform .45s ease-in ${i*4}ms, opacity .35s ease-in ${i*4}ms`;
+    d.style.transform+=' scale(.2)'; d.style.opacity='0';
+  });
+  it.grp.querySelectorAll('span').forEach(s=>s.style.pointerEvents='none');
+  setTimeout(()=>it.grp.remove(),700);
+});
 
 /* ---------- day / night ---------- */
 const $bgN=document.getElementById('bgNight');
